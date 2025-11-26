@@ -1,0 +1,35 @@
+# ======================
+# ENTORNO VIRTUAL PYTHON
+# ======================
+.venv/
+venv/
+env/
+
+# ============
+# PYTHON CACHE
+# ============
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Archivos de configuración locales
+*.env
+*.venv
+.envrc
+
+# ==================
+# ARCHIVOS DE COMPILACIÓN C
+# ==================
+# Objetos y binarios
+*.o
+*.obj
+*.lo
+*.la
+*.a
+*.so
+*.dll
+*.dylib
+a.out
+*.out
+*.exe

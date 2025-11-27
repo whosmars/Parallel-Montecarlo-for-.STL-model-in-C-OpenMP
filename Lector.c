@@ -59,28 +59,30 @@ static float triangle_area(const Triangle *t) {
 int load_stl_binary(const char *filename, Triangle **out_tris, uint32_t *out_count) {
     FILE *f = fopen(filename, "rb");
     if (!f) {
-        perror("No se pudo abrir el archivo");
+        perror("The file couldnt be opened");
         return 1;
     }
 
     //los primeros 80 bytes son la cabecera y nos dan igual
     unsigned char header[80];
-    if (fread(header, 1, 80, f) != 80) {
-        fprintf(stderr, "Error leyendo cabecera\n");
+    size_t first_bytes = fread(header, 1, 80, f);
+    if (first_bytes != 80) {
+        fprintf(stderr, "There was a mistake while reading the header\n");
         fclose(f);
         return 2;
     }
 
     // El numero de triangulos en un archivo STL viene en uint32, aqui obtenemos ese dato
     uint32_t num_triangles = 0;
-    if (fread(&num_triangles, sizeof(uint32_t), 1, f) != 1) {
-        fprintf(stderr, "Error leyendo número de triángulos\n");
+    size_t total_triangles = fread(&num_triangles, sizeof(uint32_t), 1, f);
+    if ( total_triangles != 1) {
+        fprintf(stderr, "An error occured while reading the triangles\n");
         fclose(f);
         return 3;
     }
 
     if (num_triangles == 0) {
-        fprintf(stderr, "El STL indica 0 triángulos\n");
+        fprintf(stderr, "The STL doesnt has triangles\n");
         fclose(f);
         return 4;
     }
@@ -88,28 +90,29 @@ int load_stl_binary(const char *filename, Triangle **out_tris, uint32_t *out_cou
     // Si malloc dice que no hay espacio entonces nuestro equipo de computo no es suficiente
     Triangle *triangles = (Triangle *) malloc(num_triangles * sizeof(Triangle));
     if (!triangles) {
-        fprintf(stderr, "Sin memoria para %u triángulos\n", num_triangles);
+        fprintf(stderr, "Not enough memory to read all triangles\n");
         fclose(f);
         return 5;
     }
 
-    //Procesamiento de todos los triangulos del archivo
-    //Estructura general de cada triangulo: 3 floats: normal.x, normal.y, normal.z 3 floats: v1.x, v1.y, v1.z 3 floats: v2.x, v2.y, v2.z 3 floats: v3.x, v3.y, v3.z 1 uint16_t: attribute byte count
+    //Estructura de cada triangulo: 3 floats: normal.x, normal.y, normal.z 3 floats: v1.x,
+    //v1.y, v1.z 3 floats: v2.x, v2.y, v2.z 3 floats: v3.x, v3.y, v3.z 1 uint16_t: attribute byte count
     for (uint32_t i = 0; i < num_triangles; i++) {
-        float data[12];
-        uint16_t attr;
-
         // obtenemos la normal y los vertices
-        if (fread(data, sizeof(float), 12, f) != 12) {
-            fprintf(stderr, "Error leyendo triángulo %u\n", i);
+        float data[12];
+        size_t normal_tt = fread(data, sizeof(float), 12, f);
+        if ( normal_tt != 12) {
+            fprintf(stderr, "An error ocurred while processing the triangle %u\n", i);
             free(triangles);
             fclose(f);
             return 6;
         }
 
-        // attribute byte count
-        if (fread(&attr, sizeof(uint16_t), 1, f) != 1) {
-            fprintf(stderr, "Error leyendo atributo del triángulo %u\n", i);
+        //attribute byte count
+        uint16_t attr;
+        size_t byte_tt = fread(&attr, sizeof(uint16_t), 1, f);
+        if ( byte_tt != 1) {
+            fprintf(stderr, "An error ocurred while processing the atribbute %u\n", i);
             free(triangles);
             fclose(f);
             return 7;
@@ -136,6 +139,7 @@ int load_stl_binary(const char *filename, Triangle **out_tris, uint32_t *out_cou
 
     fclose(f);
 
+    //Los valores que vamos a modificar
     *out_tris  = triangles;
     *out_count = num_triangles;
     return 0;

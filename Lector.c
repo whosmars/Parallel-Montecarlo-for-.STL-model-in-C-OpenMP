@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <math.h>
+#include <time.h>
+
 
 //Aqui definimos la estructura de un vertice en R3
 typedef struct {
@@ -22,6 +24,11 @@ static Vec3 vec3_sub(Vec3 a, Vec3 b) {
     r.y = a.y - b.y;
     r.z = a.z - b.z;
     return r;
+}
+
+//Producto punto entre vectores
+static float vec3_dot(Vec3 a, Vec3 b) {
+    return a.x*b.x + a.y*b.y + a.z*b.z;
 }
 
 //Definimos el producto cruz entre vectores, esto nos servira para el calculo de la normal
@@ -134,12 +141,135 @@ int load_stl_binary(const char *filename, Triangle **out_tris, uint32_t *out_cou
     return 0;
 }
 
+// ---------------------------------------------------------------------
+// Intersección rayo-triángulo (Möller–Trumbore)
+//
+// origin: punto donde nace el rayo
+// dir   : dirección del rayo (no necesita estar normalizada)
+// tri   : triángulo a probar
+// t_out : (opcional) distancia a lo largo del rayo, si hay intersección
+//
+// Devuelve 1 si hay intersección con el triángulo para t >= 0,
+//          0 en caso contrario.
+// ---------------------------------------------------------------------
+static int ray_intersects_triangle(Vec3 origin, Vec3 dir,
+                                   const Triangle *tri,
+                                   float *t_out)
+{
+    const float EPS = 1e-6f;
+
+    // Vértices del triángulo
+    Vec3 v0 = tri->v1;
+    Vec3 v1 = tri->v2;
+    Vec3 v2 = tri->v3;
+
+    // Aristas del triángulo
+    Vec3 e1 = vec3_sub(v1, v0);
+    Vec3 e2 = vec3_sub(v2, v0);
+
+    // Comenzamos algoritmo de Möller–Trumbore
+    Vec3 pvec = vec3_cross(dir, e2);
+    float det = vec3_dot(e1, pvec);
+
+    // Si det es ~0, el rayo es paralelo al triángulo
+    if (fabsf(det) < EPS)
+        return 0;
+
+    float invDet = 1.0f / det;
+
+    Vec3 tvec = vec3_sub(origin, v0);
+    float u = vec3_dot(tvec, pvec) * invDet;
+    if (u < 0.0f || u > 1.0f)
+        return 0;
+
+    Vec3 qvec = vec3_cross(tvec, e1);
+    float v = vec3_dot(dir, qvec) * invDet;
+    if (v < 0.0f || (u + v) > 1.0f)
+        return 0;
+
+    float t = vec3_dot(e2, qvec) * invDet;
+    if (t < 0.0f)
+        return 0; // intersección detrás del origen del rayo
+
+    if (t_out)
+        *t_out = t;
+
+    return 1;
+}
+
+
+// ---------------------------------------------------------------------
+// Estimación de volumen por Monte Carlo + ray casting
+//
+// tris   : arreglo de triángulos
+// count  : número de triángulos
+// min,max: bounding box (ya calculado en main)
+// samples: número de puntos aleatorios a usar
+//
+// Devuelve volumen aproximado.
+// ---------------------------------------------------------------------
+static double monte_carlo_volume(const Triangle *tris, uint32_t count,
+                                 Vec3 min, Vec3 max,
+                                 uint32_t samples)
+{
+    // Volumen de la caja delimitadora
+    double dx = (double)max.x - (double)min.x;
+    double dy = (double)max.y - (double)min.y;
+    double dz = (double)max.z - (double)min.z;
+    double box_vol = dx * dy * dz;
+
+    if (box_vol <= 0.0 || samples == 0)
+        return 0.0;
+
+    uint32_t inside_count = 0;
+
+    // Dirección fija del rayo (eje X positivo)
+    Vec3 dir;
+    dir.x = 1.0f;
+    dir.y = 0.0f;
+    dir.z = 0.0f;
+
+    for (uint32_t i = 0; i < samples; ++i) {
+        // Punto aleatorio uniforme dentro del bounding box
+        float rx = (float)rand() / (float)RAND_MAX;
+        float ry = (float)rand() / (float)RAND_MAX;
+        float rz = (float)rand() / (float)RAND_MAX;
+
+        Vec3 p;
+        p.x = min.x + rx * (max.x - min.x);
+        p.y = min.y + ry * (max.y - min.y);
+        p.z = min.z + rz * (max.z - min.z);
+
+        // Contar cuántas veces el rayo desde p intersecta la malla
+        int intersections = 0;
+        for (uint32_t j = 0; j < count; ++j) {
+            float t;
+            if (ray_intersects_triangle(p, dir, &tris[j], &t)) {
+                intersections++;
+            }
+        }
+
+        // Regla de paridad: impar = dentro, par = fuera
+        if (intersections % 2 == 1) {
+            inside_count++;
+        }
+    }
+
+    double ratio = (double)inside_count / (double)samples;
+    return box_vol * ratio;
+}
+
+
+
 // Programa principal de prueba
 int main(int argc, char *argv[]) {
     if (argc < 2) {
         fprintf(stderr, "Uso: %s archivo.stl\n", argv[0]);
         return 1;
     }
+
+    //Esta es la semilla del monecarlo
+    srand((unsigned) time(NULL));
 
     const char *filename = argv[1];
 
@@ -165,6 +295,7 @@ int main(int argc, char *argv[]) {
     Vec3 min = tris[0].v1;
     Vec3 max = tris[0].v1;
 
+
     for (uint32_t i = 0; i < count; i++) {
         Vec3 vs[3] = { tris[i].v1, tris[i].v2, tris[i].v3 };
         for (int k = 0; k < 3; k++) {
@@ -177,6 +308,14 @@ int main(int argc, char *argv[]) {
             if (v.z > max.z) max.z = v.z;
         }
     }
+
+
+    // Número de muestras para Monte Carlo
+    uint32_t samples = 100000;
+
+    double vol_mc = monte_carlo_volume(tris, count, min, max, samples);
+    printf("Volumen aproximado (Monte Carlo, %u muestras): %.6f unidades^3\n",
+       samples, vol_mc);
 
     printf("Bounding box:\n");
     printf("  min = (%.6f, %.6f, %.6f)\n", min.x, min.y, min.z);

@@ -3,7 +3,7 @@
 #include <stdint.h>
 #include <math.h>
 #include <time.h>
-
+#include <omp.h>
 
 //Aqui definimos la estructura de un vertice en R3
 typedef struct {
@@ -300,6 +300,8 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+    double start = omp_get_wtime(); // Tiempo inicial
+
     //Esta es la semilla del monecarlo
     srand((unsigned) time(NULL));
 
@@ -332,13 +334,18 @@ int main(int argc, char *argv[]) {
     uint32_t samples = 100000;
 
     double vol_mc = monte_carlo_volume(tris, count, min, max, samples);
+
+    double end = omp_get_wtime(); // Tiempo final
+
     printf("Volumen aproximado (Monte Carlo, %u muestras): %.6f unidades^3\n",
        samples, vol_mc);
-
     printf("Bounding box:\n");
     printf("  min = (%.6f, %.6f, %.6f)\n", min.x, min.y, min.z);
     printf("  max = (%.6f, %.6f, %.6f)\n", max.x, max.y, max.z);
 
+    printf("Tiempo total de ejecucion: %.4f segundos\n", end - start);
+
     free(tris);
+
     return 0;
 }

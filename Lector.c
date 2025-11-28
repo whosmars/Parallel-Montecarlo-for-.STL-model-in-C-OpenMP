@@ -266,6 +266,32 @@ static double monte_carlo_volume(const Triangle *tris, uint32_t count,
     return box_vol * ratio;
 }
 
+//Calculamos la bounding box
+static void compute_bounding_box(const Triangle *tris, uint32_t count,
+                                 Vec3 *min_out, Vec3 *max_out)
+{
+
+    Vec3 min = tris[0].v1;
+    Vec3 max = tris[0].v1;
+
+    for (uint32_t i = 0; i < count; i++) {
+        Vec3 vs[3] = { tris[i].v1, tris[i].v2, tris[i].v3 };
+        for (int k = 0; k < 3; k++) {
+            Vec3 v = vs[k];
+            if (v.x < min.x) min.x = v.x;
+            if (v.y < min.y) min.y = v.y;
+            if (v.z < min.z) min.z = v.z;
+            if (v.x > max.x) max.x = v.x;
+            if (v.y > max.y) max.y = v.y;
+            if (v.z > max.z) max.z = v.z;
+        }
+    }
+
+    *min_out = min;
+    *max_out = max;
+}
+
+
 
 // Programa principal de prueba
 int main(int argc, char *argv[]) {
@@ -300,23 +326,9 @@ int main(int argc, char *argv[]) {
     // Bounding box
     Vec3 min = tris[0].v1;
     Vec3 max = tris[0].v1;
+    compute_bounding_box(tris, count, &min, &max);
 
-
-    for (uint32_t i = 0; i < count; i++) {
-        Vec3 vs[3] = { tris[i].v1, tris[i].v2, tris[i].v3 };
-        for (int k = 0; k < 3; k++) {
-            Vec3 v = vs[k];
-            if (v.x < min.x) min.x = v.x;
-            if (v.y < min.y) min.y = v.y;
-            if (v.z < min.z) min.z = v.z;
-            if (v.x > max.x) max.x = v.x;
-            if (v.y > max.y) max.y = v.y;
-            if (v.z > max.z) max.z = v.z;
-        }
-    }
-
-
-    // Número de muestras para Monte Carlo
+    //numero de muestras para Monte Carlo
     uint32_t samples = 100000;
 
     double vol_mc = monte_carlo_volume(tris, count, min, max, samples);

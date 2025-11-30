@@ -200,7 +200,7 @@ static int ray_intersects_triangle(Vec3 origin, Vec3 dir,
     }
 
     return 1;
-}
+}https://classroom.google.com/u/1//h
 
 
 // ---------------------------------------------------------------------

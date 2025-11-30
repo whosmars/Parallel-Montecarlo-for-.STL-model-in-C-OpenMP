@@ -266,29 +266,52 @@ static double monte_carlo_volume(const Triangle *tris, uint32_t count,
     return box_vol * ratio;
 }
 
-//Calculamos la bounding box
 static void compute_bounding_box(const Triangle *tris, uint32_t count,
                                  Vec3 *min_out, Vec3 *max_out)
 {
+    Vec3 global_min = tris[0].v1;
+    Vec3 global_max = tris[0].v1;
 
-    Vec3 min = tris[0].v1;
-    Vec3 max = tris[0].v1;
+    Vec3 local_min;
+    Vec3 local_max;
 
-    for (uint32_t i = 0; i < count; i++) {
-        Vec3 vs[3] = { tris[i].v1, tris[i].v2, tris[i].v3 };
-        for (int k = 0; k < 3; k++) {
-            Vec3 v = vs[k];
-            if (v.x < min.x) min.x = v.x;
-            if (v.y < min.y) min.y = v.y;
-            if (v.z < min.z) min.z = v.z;
-            if (v.x > max.x) max.x = v.x;
-            if (v.y > max.y) max.y = v.y;
-            if (v.z > max.z) max.z = v.z;
+    #pragma omp parallel private(local_min, local_max)
+    {
+        // OJO: las variables privadas NO vienen inicializadas
+        local_min = global_min;
+        local_max = global_max;
+
+        #pragma omp for
+        for (uint32_t i = 0; i < count; i++) {
+            Vec3 vs[3] = { tris[i].v1, tris[i].v2, tris[i].v3 };
+
+            for (int k = 0; k < 3; k++) {
+                Vec3 v = vs[k];
+
+                if (v.x < local_min.x) local_min.x = v.x;
+                if (v.y < local_min.y) local_min.y = v.y;
+                if (v.z < local_min.z) local_min.z = v.z;
+
+                if (v.x > local_max.x) local_max.x = v.x;
+                if (v.y > local_max.y) local_max.y = v.y;
+                if (v.z > local_max.z) local_max.z = v.z;
+            }
+        }
+
+        #pragma omp critical
+        {
+            if (local_min.x < global_min.x) global_min.x = local_min.x;
+            if (local_min.y < global_min.y) global_min.y = local_min.y;
+            if (local_min.z < global_min.z) global_min.z = local_min.z;
+
+            if (local_max.x > global_max.x) global_max.x = local_max.x;
+            if (local_max.y > global_max.y) global_max.y = local_max.y;
+            if (local_max.z > global_max.z) global_max.z = local_max.z;
         }
     }
 
-    *min_out = min;
-    *max_out = max;
+    *min_out = global_min;
+    *max_out = global_max;
 }
 
 

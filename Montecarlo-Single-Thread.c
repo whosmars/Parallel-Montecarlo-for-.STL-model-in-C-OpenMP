@@ -200,7 +200,7 @@ static int ray_intersects_triangle(Vec3 origin, Vec3 dir,
     }
 
     return 1;
-}https://classroom.google.com/u/1//h
+}
 
 
 // ---------------------------------------------------------------------
@@ -291,6 +291,17 @@ static void compute_bounding_box(const Triangle *tris, uint32_t count,
     *max_out = max;
 }
 
+//calcula la sumatoria del area de todos los triangulos
+double compute_total_area(const Triangle *tris, uint32_t count) {
+    double total_area = 0.0;
+    //Parallel
+    #pragma omp parallel for reduction(+:total_area)
+    for (uint32_t i = 0; i < count; i++) {
+        total_area += (double) triangle_area(&tris[i]);
+    }
+
+    return total_area;
+}
 
 
 // Programa principal de prueba
@@ -315,14 +326,10 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "Error cargando STL (%d)\n", err);
         return 1;
     }
-
     printf("Triángulos leídos: %u\n", count);
 
-    // Área total
-    double total_area = 0.0;
-    for (uint32_t i = 0; i < count; i++) {
-        total_area += (double) triangle_area(&tris[i]);
-    }
+    //Area total
+    double total_area = compute_total_area(tris, count);
     printf("Área superficial aproximada: %.6f unidades^2\n", total_area);
 
     // Bounding box

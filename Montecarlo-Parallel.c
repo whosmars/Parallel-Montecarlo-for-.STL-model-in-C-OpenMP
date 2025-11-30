@@ -217,54 +217,63 @@ static double monte_carlo_volume(const Triangle *tris, uint32_t count,
                                  Vec3 min, Vec3 max,
                                  uint32_t samples)
 {
-    // Volumen de la caja delimitadora
     double dx = (double)max.x - (double)min.x;
     double dy = (double)max.y - (double)min.y;
     double dz = (double)max.z - (double)min.z;
     double box_vol = dx * dy * dz;
 
-    //caso donde algo previamente salio mal
     if (box_vol <= 0.0 || samples == 0){
-      return 0.0;
+        return 0.0;
     }
 
-    // Dirección fija del rayo
+    // Dirección fija del rayo (solo lectura, se comparte sin problema)
     Vec3 dir;
     dir.x = 1.0f;
     dir.y = 0.0f;
     dir.z = 0.0f;
 
-    //si inside count nos da impar = dentro, par = fuera
     uint32_t inside_count = 0;
 
-    for (uint32_t i = 0; i < samples; ++i) {
-        // Punto aleatorio uniforme dentro del bounding box
-        float rx = (float)rand() / (float)RAND_MAX;
-        float ry = (float)rand() / (float)RAND_MAX;
-        float rz = (float)rand() / (float)RAND_MAX;
+    // Semilla base
+    time_t base_seed = time(NULL);
 
-        Vec3 p;
-        p.x = min.x + rx * (max.x - min.x);
-        p.y = min.y + ry * (max.y - min.y);
-        p.z = min.z + rz * (max.z - min.z);
+    // Paralelizamos el bucle de samples
+    #pragma omp parallel
+    {
+        //Esto es private, cada hilo tiene su propia semilla
+        unsigned int seed = (unsigned int)base_seed ^ (unsigned int)omp_get_thread_num();
 
-        // Contar cuántas veces el rayo desde p intersecta la malla
-        uint32_t intersections = 0;
-        for (uint32_t j = 0; j < count; ++j) {
-            float t;
-            if (ray_intersects_triangle(p, dir, &tris[j], &t)) {
-                intersections++;
+        #pragma omp for reduction(+:inside_count)
+        for (uint32_t i = 0; i < samples; ++i) {
+            // Punto aleatorio uniforme dentro del bounding box
+            float rx = (float)rand_r(&seed) / (float)RAND_MAX;
+            float ry = (float)rand_r(&seed) / (float)RAND_MAX;
+            float rz = (float)rand_r(&seed) / (float)RAND_MAX;
+
+            Vec3 p;
+            p.x = min.x + rx * (max.x - min.x);
+            p.y = min.y + ry * (max.y - min.y);
+            p.z = min.z + rz * (max.z - min.z);
+
+            // Contar cuántas veces el rayo desde p intersecta la malla
+            uint32_t intersections = 0;
+            for (uint32_t j = 0; j < count; ++j) {
+                float t;
+                if (ray_intersects_triangle(p, dir, &tris[j], &t)) {
+                    intersections++;
+                }
             }
-        }
 
-        if (intersections % 2 == 1) {
-            inside_count++;
+            if (intersections % 2 == 1) {
+                inside_count++;
+            }
         }
     }
 
     double ratio = (double)inside_count / (double)samples;
     return box_vol * ratio;
 }
+
 
 static void compute_bounding_box(const Triangle *tris, uint32_t count,
                                  Vec3 *min_out, Vec3 *max_out)

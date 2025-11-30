@@ -291,10 +291,12 @@ static void compute_bounding_box(const Triangle *tris, uint32_t count,
     *max_out = max;
 }
 
+
 //calcula la sumatoria del area de todos los triangulos
 double compute_total_area(const Triangle *tris, uint32_t count) {
     double total_area = 0.0;
-
+    //Parallel
+    #pragma omp parallel for reduction(+:total_area)
     for (uint32_t i = 0; i < count; i++) {
         total_area += (double) triangle_area(&tris[i]);
     }

@@ -339,10 +339,18 @@ double compute_total_area(const Triangle *tris, uint32_t count) {
 
 // Programa principal de prueba
 int main(int argc, char *argv[]) {
-    if (argc < 2) {
-        fprintf(stderr, "Uso: %s archivo.stl\n", argv[0]);
+  if (argc < 3) {
+      fprintf(stderr, "Uso: %s archivo.stl num_hilos\n", argv[0]);
+      return 1;
+  }
+  int num_threads = atoi(argv[2]);
+  if (num_threads <= 0) {
+        fprintf(stderr, "El número de hilos debe ser > 0\n");
         return 1;
-    }
+  }
+  // Fijar número de hilos de OpenMP desde C
+  omp_set_num_threads(num_threads);
+
 
     double start = omp_get_wtime(); // Tiempo inicial
 
